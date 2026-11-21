@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows Slowness Triage | Why is this host slow</title>
+<meta name="description" content="A PowerShell module that samples a Windows host and names the likely cause of slowness: handle leaks, TIME_WAIT and CLOSE_WAIT pile-ups, CPU, memory and disk queue. Tested on Windows and Linux, linted, gated by SonarQube, with a GitLab CI file.">
+<link rel="canonical" href="https://gerardrecinto.github.io/windows-slowness-triage/">
+<meta name="color-scheme" content="dark light">
+<style>
+:root{--bg:#0B0F14;--fg:#E6EAF0;--mut:#9AA4B5;--line:#1C2430;--card:#111823;--a:#38bdf8;--bad:#f87171;--warn:#fbbf24}
+@media(prefers-color-scheme:light){:root{--bg:#F5F6F8;--fg:#0F1520;--mut:#566074;--line:#DCE0E8;--card:#fff;--a:#0369a1;--bad:#b91c1c;--warn:#92400e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,system-ui,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:64px 20px 80px}
+h1{font-size:clamp(2rem,6vw,3.1rem);line-height:1.1;margin:0 0 14px;letter-spacing:-.02em}h1 span{color:var(--a)}
+h2{margin:48px 0 10px;font-size:1.3rem}p,li{color:var(--mut)}strong{color:var(--fg)}a{color:var(--a)}
+.lead{font-size:1.12rem;color:var(--fg)}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;font:.85rem/1.6 ui-monospace,Menlo,Consolas,monospace;color:var(--fg)}
+.c{color:var(--bad)}.w{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}td,th{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--fg)}td{color:var(--mut)}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em}
+footer{margin-top:56px;border-top:1px solid var(--line);padding-top:18px;font-size:.88rem;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<h1>Why is this host <span>slow</span>?</h1>
+<p class="lead">A PowerShell module that samples a Windows host and names the likely cause: a handle leak, sockets stuck in TIME_WAIT or CLOSE_WAIT, a CPU or memory squeeze, a deep disk queue. It exits non-zero on a critical finding, so a pipeline or a monitor can use it.</p>
+<p><a href="https://github.com/gerardrecinto/windows-slowness-triage">Source on GitHub</a></p>
+
+<h2>Real output</h2>
+<p>Run on the sample files in the repo (<code>samples/</code>). The samples are synthetic.</p>
+<pre>$ ./bin/slowhost.ps1 -SampleFile samples/handle-leak.json
+host win-app-07  cpu 46.5%  mem 5200/16384 MB free  disk queue 0.3
+<span class="c">CRITICAL</span> HandleLeakSuspect  orders-api (pid 4120) holds 63211 handles
+<span class="w">WARNING </span> TimeWaitPileUp     6400 sockets in TIME_WAIT (ephemeral port exhaustion risk)
+exit 2
+
+$ ./bin/slowhost.ps1 -SampleFile samples/cpu-starved.json
+host win-app-03  cpu 98.2%  mem 600/8192 MB free  disk queue 6.5
+<span class="c">CRITICAL</span> CpuSaturated       CPU at 98.2%
+<span class="c">CRITICAL</span> MemoryPressure     7.3% memory available
+<span class="w">WARNING </span> ThreadCountHigh    worker (pid 910) has 2600 threads
+<span class="w">WARNING </span> CloseWaitPileUp    740 sockets in CLOSE_WAIT (an app is not closing connections)
+<span class="c">CRITICAL</span> DiskQueue          disk queue length 6.5
+exit 2
+
+$ ./bin/slowhost.ps1 -SampleFile samples/healthy.json
+host win-app-01  cpu 22%  mem 9000/16384 MB free  disk queue 0.1
+no findings
+exit 0</pre>
+
+<h2>Run it</h2>
+<pre>git clone https://github.com/gerardrecinto/windows-slowness-triage
+cd windows-slowness-triage
+./bin/slowhost.ps1            # this machine, about 2 seconds</pre>
+
+<h2>How it is checked</h2>
+<table>
+<tr><th>Check</th><th>What it does</th></tr>
+<tr><td>Pester on Windows and Linux</td><td>Rules are tested against sample hosts. The Windows-only collector test runs on a Windows runner.</td></tr>
+<tr><td>PSScriptAnalyzer</td><td>Lint must be clean on every push.</td></tr>
+<tr><td>SonarQube gate</td><td>Community does not analyze PowerShell, so analyzer results are imported as external issues next to the Python findings, and the build waits for the quality gate.</td></tr>
+<tr><td>GitLab CI</td><td>The same checks in <code>.gitlab-ci.yml</code>. The Windows job needs a runner tagged <code>windows</code> and has not run on one.</td></tr>
+</table>
+<footer>MIT licensed. Built by Gerard Recinto.</footer>
+</main>
+</body>
+</html>
