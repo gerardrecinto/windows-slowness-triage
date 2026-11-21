@@ -12,6 +12,7 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install Pester and PSScriptAnalyzer
@@ -68,7 +69,8 @@ jobs:
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Force
-          @('src', 'bin') | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse } | Select-Object RuleName, Severity, Line, Message, ScriptPath | ConvertTo-Json -Depth 2 | Set-Content psa.json
+          $r = @(@('src', 'bin') | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse })
+          if ($r.Count) { $r | Select-Object RuleName, Severity, Line, Message, ScriptPath | ConvertTo-Json -Depth 2 | Set-Content psa.json } else { Set-Content psa.json '[]' }
           python3 -m pytest -q --cov=ci --cov-report=xml
           python3 ci/psa_to_sonar.py psa.json | Set-Content psa-sonar.json
       - name: Scan
