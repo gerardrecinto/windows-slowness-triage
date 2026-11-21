@@ -1,0 +1,78 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  powershell:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pester and PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer -Force
+      - name: Lint
+        shell: pwsh
+        run: |
+          $r = @('src', 'bin') | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse }
+          $r | Format-Table RuleName, Line, Message
+          if ($r) { throw "$(@($r).Count) analyzer findings" }
+      - name: Pester
+        shell: pwsh
+        run: Invoke-Pester -Path tests -CI -Output Detailed
+      - name: Report on this runner (live sample)
+        shell: pwsh
+        run: ./bin/slowhost.ps1 -TopCount 3
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pytest-cov ruff
+      - run: ruff check ci tests
+      - run: python -m pytest -q --cov=ci --cov-report=term
+  sonarqube:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pytest-cov
+      - name: Start SonarQube Community
+        run: |
+          docker run -d --name sonar -p 9000:9000 -e SONAR_SEARCH_JAVAADDITIONALOPTS=-Dnode.store.allow_mmap=false sonarqube:community
+          for i in $(seq 1 90); do
+            curl -fsS localhost:9000/api/system/status | grep -q '"status":"UP"' && break
+            sleep 5
+          done
+          curl -fsS localhost:9000/api/system/status
+      - name: Create a token
+        run: |
+          curl -fsS -u admin:admin -X POST localhost:9000/api/users/change_password -d login=admin -d previousPassword=admin -d password=Ci-only-Passw0rd!
+          TOKEN=$(curl -fsS -u 'admin:Ci-only-Passw0rd!' -X POST localhost:9000/api/user_tokens/generate -d name=ci | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          echo "::add-mask::$TOKEN"
+          echo "SONAR_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+      - name: Coverage and PowerShell analyzer results
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force
+          @('src', 'bin') | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse } | Select-Object RuleName, Severity, Line, Message, ScriptPath | ConvertTo-Json -Depth 2 | Set-Content psa.json
+          python3 -m pytest -q --cov=ci --cov-report=xml
+          python3 ci/psa_to_sonar.py psa.json | Set-Content psa-sonar.json
+      - name: Scan
+        run: |
+          docker run --rm --network host -e SONAR_HOST_URL=http://localhost:9000 -e SONAR_TOKEN -v "$PWD:/usr/src" sonarsource/sonar-scanner-cli
+      - name: Quality gate
+        run: python3 ci/sonar_gate.py

@@ -1,0 +1,12 @@
+{
+  "host": "win-app-07",
+  "collected": "2026-11-21T00:00:00Z",
+  "cpuPercent": 46.5,
+  "memory": { "totalMB": 16384, "availableMB": 5200 },
+  "diskQueue": 0.3,
+  "tcp": { "Established": 310, "TimeWait": 6400, "CloseWait": 12 },
+  "processes": [
+    { "name": "orders-api", "id": 4120, "cpuSeconds": 8120.4, "handles": 63211, "threads": 88, "workingSetMB": 2210 },
+    { "name": "sqlservr", "id": 2288, "cpuSeconds": 51200.0, "handles": 2400, "threads": 310, "workingSetMB": 9800 }
+  ]
+}

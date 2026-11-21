@@ -1,0 +1,9 @@
+{
+  "host": "win-app-03",
+  "collected": "2026-11-21T00:00:00Z",
+  "cpuPercent": 98.2,
+  "memory": { "totalMB": 8192, "availableMB": 600 },
+  "diskQueue": 6.5,
+  "tcp": { "Established": 900, "CloseWait": 740 },
+  "processes": [ { "name": "worker", "id": 910, "cpuSeconds": 99000.0, "handles": 1500, "threads": 2600, "workingSetMB": 6000 } ]
+}

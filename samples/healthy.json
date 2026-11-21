@@ -1,0 +1,9 @@
+{
+  "host": "win-app-01",
+  "collected": "2026-11-21T00:00:00Z",
+  "cpuPercent": 22.0,
+  "memory": { "totalMB": 16384, "availableMB": 9000 },
+  "diskQueue": 0.1,
+  "tcp": { "Established": 120, "TimeWait": 40 },
+  "processes": [ { "name": "orders-api", "id": 4120, "cpuSeconds": 320.0, "handles": 900, "threads": 40, "workingSetMB": 410 } ]
+}

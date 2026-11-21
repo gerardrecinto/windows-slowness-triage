@@ -1,0 +1,54 @@
+# Same checks as .github/workflows/ci.yml, for GitLab CI/CD.
+# Verified locally with gitlab-ci-local: python-tests. The Windows job needs a runner tagged "windows"
+# and has not been run on one. The sonarqube job needs SONAR_HOST_URL and SONAR_TOKEN as CI/CD variables.
+stages: [lint, test, scan]
+
+default:
+  interruptible: true
+
+python-tests:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install -q pytest pytest-cov ruff
+    - ruff check ci tests
+    - python -m pytest -q --cov=ci --cov-report=xml --cov-report=term
+  coverage: '/TOTAL.*\s(\d+)%/'
+  artifacts:
+    reports:
+      coverage_report: { coverage_format: cobertura, path: coverage.xml }
+    paths: [coverage.xml]
+
+pester-linux:
+  stage: test
+  image: mcr.microsoft.com/powershell:lts-ubuntu-22.04
+  script:
+    - pwsh -NoProfile -Command "Install-Module Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck; Install-Module PSScriptAnalyzer -Force"
+    - pwsh -NoProfile -Command "$r = @('src','bin') | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse }; if ($r) { $r | Format-Table; exit 1 }"
+    - pwsh -NoProfile -Command "Invoke-Pester -Path tests -CI -Output Detailed"
+
+pester-windows:
+  stage: test
+  tags: [windows]
+  script:
+    - Install-Module Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck
+    - Invoke-Pester -Path tests -CI -Output Detailed
+    - ./bin/slowhost.ps1 -TopCount 3
+  rules:
+    - if: $CI_COMMIT_BRANCH
+
+sonarqube:
+  stage: scan
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  needs: [python-tests]
+  variables:
+    SONAR_USER_HOME: "$CI_PROJECT_DIR/.sonar"
+  cache:
+    key: sonar
+    paths: [.sonar/cache]
+  script:
+    - sonar-scanner -Dsonar.host.url="$SONAR_HOST_URL"
+  rules:
+    - if: $SONAR_HOST_URL && $SONAR_TOKEN
