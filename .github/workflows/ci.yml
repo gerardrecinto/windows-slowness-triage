@@ -75,6 +75,6 @@ jobs:
           python3 ci/psa_to_sonar.py psa.json | Set-Content psa-sonar.json
       - name: Scan
         run: |
-          docker run --rm --network host -e SONAR_HOST_URL=http://localhost:9000 -e SONAR_TOKEN -v "$PWD:/usr/src" sonarsource/sonar-scanner-cli
+          docker run --rm --network host -e SONAR_HOST_URL=http://localhost:9000 -e SONAR_TOKEN -v "$PWD:/usr/src" sonarsource/sonar-scanner-cli -Dsonar.working.directory=/usr/src/.scannerwork
       - name: Quality gate
         run: python3 ci/sonar_gate.py
